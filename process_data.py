@@ -1,6 +1,5 @@
 import json
 
-# Load your dataset
 with open("train_TLQA.json", "r") as file:
     data_train = json.load(file)
 with open("val_TLQA.json", "r") as file:
@@ -13,28 +12,31 @@ val_data = []
 test_data = []
 
 for item in data_train:
-    input_text = item["question"]
-    output_text = ", ".join(item["final_answers"])
-    train_data.append({"input": input_text, "output": output_text})
+    input_text = item.get("question", "").strip()  
+    output_text = ", ".join([ans for ans in item.get("final_answers", []) if ans.strip()]) 
 
-# Save preprocessed data
-with open("train_processed.json", "w") as file:
-    json.dump(train_data, file)
+    if input_text and output_text:
+        train_data.append({"input": input_text, "output": output_text})
+
+with open("train_processed.json", "w", encoding="utf-8") as file:
+    json.dump(train_data, file, ensure_ascii=False)
 
 for item in data_val:
-    input_text = item["question"]
-    output_text = ", ".join(item["final_answers"])
-    val_data.append({"input": input_text, "output": output_text})
+    input_text = item.get("question", "").strip()
+    output_text = ", ".join([ans for ans in item.get("final_answers", []) if ans.strip()])
+    
+    if input_text and output_text:
+        val_data.append({"input": input_text, "output": output_text})
 
-# Save preprocessed data
-with open("val_processed.json", "w") as file:
-    json.dump(val_data, file)
+with open("val_processed.json", "w", encoding="utf-8") as file:
+    json.dump(val_data, file, ensure_ascii=False)
 
 for item in data_test:
-    input_text = item["question"]
-    output_text = ", ".join(item["final_answers"])
-    test_data.append({"input": input_text, "output": output_text})
+    input_text = item.get("question", "").strip()
+    output_text = ", ".join([ans for ans in item.get("final_answers", []) if ans.strip()])
+    
+    if input_text and output_text:
+        test_data.append({"input": input_text, "output": output_text})
 
-# Save preprocessed data
-with open("test_processed.json", "w") as file:
-    json.dump(test_data, file)
+with open("test_processed.json", "w", encoding="utf-8") as file:
+    json.dump(test_data, file, ensure_ascii=False)
