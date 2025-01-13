@@ -1,4 +1,8 @@
 # Load model directly
+import pickle
+from evaluate import load
+
+from datasets import load_metric
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import json
 
@@ -16,7 +20,7 @@ def generate_predictions(model, tokenizer, inputs):
 
 # Prepare few-shot examples
 def prepare_few_shot_examples(dataset):
-    examples = []
+    examples = [] #"Given the following examples, give an answer for the last question.\n"
     for sample in dataset:
         examples.append(f"Q: {sample['input']} A: {sample['output']}")
     return "\n".join(examples)
@@ -32,8 +36,13 @@ with open("test_processed.json", "r") as file:
     test_dataset = json.load(file)
 
 knn_instance = KnnSearch()
-transfer_questions = knn_instance.get_transfer_questions(train_dataset)
-data_emb = knn_instance.get_embeddings_for_data(transfer_questions)
+# transfer_questions = knn_instance.get_transfer_questions(train_dataset)
+# data_emb = knn_instance.get_embeddings_for_data(transfer_questions)
+
+with open("train_embeddings", 'rb') as f:
+    data_emb = pickle.load(f)
+
+predictions = []
 
 # Predictions on test set
 for test_sample in test_dataset[:2]:
@@ -48,10 +57,40 @@ for test_sample in test_dataset[:2]:
     print("\nInput text:", input_text)
 
     # Predict with both models
-    print("\nTest Question:", test_question)
+    # print("\nTest Question:", test_question)
 
     print("Predictions using Flan-T5-Large:")
     predictions_large = generate_predictions(model, tokenizer, [input_text])
-    print(predictions_large)
+    print(predictions_large[0])
     print("Actual answer: ", test_sample["output"])
 
+    predictions.append(predictions_large[0])
+
+actual_answers = [sample["output"] for sample in test_dataset[:2]]
+
+# print(predictions)
+# print(actual_answers)
+
+# Load evaluation metrics
+# squad_metric = load("precision")
+rouge = load('rouge')
+
+# Example: Evaluate predictions against ground truth
+def evaluate_predictions(predictions, references):
+    # F1 Score
+    # f1_scores = squad_metric.compute(predictions=predictions, references=references)
+
+    # ROUGE Scores
+    rouge_scores = rouge.compute(predictions=predictions, references=references)
+
+    return {
+        # "F1 Score": f1_scores,
+        "ROUGE": rouge_scores,
+    }
+
+# Evaluate
+results = evaluate_predictions(predictions, actual_answers)
+
+print("Evaluation Results:")
+# print("F1 Score:", results["F1 Score"])
+print("ROUGE:", results["ROUGE"])
