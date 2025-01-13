@@ -1,0 +1,7 @@
+*.safetensors
+data/test_TLQA.json
+data/train_TLQA.json
+data/val_TLQA.json
+model_output/checkpoint-102
+model_output/checkpoint-150
+model_output/checkpoint-51
