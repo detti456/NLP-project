@@ -5,3 +5,6 @@ data/val_TLQA.json
 model_output/checkpoint-102
 model_output/checkpoint-150
 model_output/checkpoint-51
+model_output/checkpoint-153
+model_output/checkpoint-204
+model_output/checkpoint-250
