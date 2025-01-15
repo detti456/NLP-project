@@ -1,3 +1,5 @@
+import pickle
+
 from datasets import Dataset, load_dataset
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -65,3 +67,19 @@ class KnnSearch:
 #
 # with open("train_k_3_samples.json", "w") as file:
 #     json.dump(train_samples, file)
+
+
+# knn_instance = KnnSearch()
+# transfer_questions = knn_instance.get_transfer_questions(train_dataset)
+# data_emb = knn_instance.get_embeddings_for_data(transfer_questions)
+#
+#
+# with open("train_embeddings", 'wb') as f:
+#     pickle.dump(data_emb, f)
+
+# with open("train_embeddings", 'rb') as f:
+#     my_list = pickle.load(f)
+#
+# print(my_list)
+#
+# print(my_list == data_emb)

@@ -1,15 +1,18 @@
-# Load model directly
 import pickle
-from evaluate import load
+
 
 from datasets import load_metric
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import json
-
+from TLQAMetrics import TLQAMetrics
 from KnnSearch import KnnSearch
 
-tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
-model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
+with open("test_processed.json", "r") as file:
+    test_dataset = json.load(file)
+actual_answers = [sample["output"] for sample in test_dataset[:2]]
+
+ks = [3,5,7,10]
+
 
 # Make predictions
 def generate_predictions(model, tokenizer, inputs):
@@ -18,79 +21,80 @@ def generate_predictions(model, tokenizer, inputs):
     predictions = tokenizer.batch_decode(outputs, skip_special_tokens=True)
     return predictions
 
+
 # Prepare few-shot examples
 def prepare_few_shot_examples(dataset):
-    examples = [] #"Given the following examples, give an answer for the last question.\n"
+    examples = []  # "Given the following examples, give an answer for the last question.\n"
     for sample in dataset:
         examples.append(f"Q: {sample['input']} A: {sample['output']}")
     return "\n".join(examples)
+
 
 # Format input for few-shot prediction
 def format_input(few_shot_examples, test_question):
     return f"{few_shot_examples}\nQ: {test_question} A:"
 
-# Load TLQA dataset
-with open("train_processed.json", "r") as file:
-    train_dataset = json.load(file)
-with open("test_processed.json", "r") as file:
-    test_dataset = json.load(file)
+for k in ks:
+    try:
+        with open(f"predictions/flan-t5-large-k{k}-predictions.json", "r") as file:
+            predictions = json.load(file)
 
-knn_instance = KnnSearch()
-# transfer_questions = knn_instance.get_transfer_questions(train_dataset)
-# data_emb = knn_instance.get_embeddings_for_data(transfer_questions)
+    except:
+        tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
+        model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
 
-with open("train_embeddings", 'rb') as f:
-    data_emb = pickle.load(f)
+        # Load TLQA dataset
+        with open("train_processed.json", "r") as file:
+            train_dataset = json.load(file)
 
-predictions = []
 
-# Predictions on test set
-for test_sample in test_dataset[:2]:
-    test_question = test_sample["input"]
+        knn_instance = KnnSearch()
 
-    few_shot_examples = knn_instance.get_top_n_neighbours(test_question, data_emb, train_dataset,3)
-    few_shot_examples_prompt = prepare_few_shot_examples(few_shot_examples)
+        try:
+            with open("train_embeddings", 'rb') as f:
+                data_emb = pickle.load(f)
+        except:
+            transfer_questions = knn_instance.get_transfer_questions(train_dataset)
+            data_emb = knn_instance.get_embeddings_for_data(transfer_questions)
+            with open("train_embeddings", 'wb') as f:
+                pickle.dump(data_emb, f)
 
-    # Format input for few-shot prediction
-    input_text = format_input(few_shot_examples_prompt, test_question)
+        predictions = []
 
-    print("\nInput text:", input_text)
+        # Predictions on test set
+        for test_sample in test_dataset[:2]:
+            test_question = test_sample["input"]
 
-    # Predict with both models
-    # print("\nTest Question:", test_question)
+            few_shot_examples = knn_instance.get_top_n_neighbours(test_question, data_emb, train_dataset,k)
+            few_shot_examples_prompt = prepare_few_shot_examples(few_shot_examples)
 
-    print("Predictions using Flan-T5-Large:")
-    predictions_large = generate_predictions(model, tokenizer, [input_text])
-    print(predictions_large[0])
-    print("Actual answer: ", test_sample["output"])
+            # Format input for few-shot prediction
+            input_text = format_input(few_shot_examples_prompt, test_question)
 
-    predictions.append(predictions_large[0])
+            # print("\nInput text:", input_text)
 
-actual_answers = [sample["output"] for sample in test_dataset[:2]]
+            # print("Predictions using Flan-T5-Large:")
+            predictions_large = generate_predictions(model, tokenizer, [input_text])
+            print("Predicted answer: ",predictions_large[0])
+            # print("Actual answer: ", test_sample["output"])
 
-# print(predictions)
-# print(actual_answers)
+            predictions.append(predictions_large[0])
 
-# Load evaluation metrics
-# squad_metric = load("precision")
-rouge = load('rouge')
+        actual_answers = [sample["output"] for sample in test_dataset[:2]]
 
-# Example: Evaluate predictions against ground truth
-def evaluate_predictions(predictions, references):
-    # F1 Score
-    # f1_scores = squad_metric.compute(predictions=predictions, references=references)
+        with open(f"predictions/flan-t5-large-k{k}-predictions.json", "w") as file:
+            json.dump(predictions, file)
 
-    # ROUGE Scores
-    rouge_scores = rouge.compute(predictions=predictions, references=references)
+    evaluator = TLQAMetrics()
 
-    return {
-        # "F1 Score": f1_scores,
-        "ROUGE": rouge_scores,
-    }
+    # Evaluate
+    evaluation_results = evaluator.evaluate_predictions(predictions, actual_answers)
 
-# Evaluate
-results = evaluate_predictions(predictions, actual_answers)
+    print("Evaluation Results:")
+    print("F1 Scores:", evaluation_results["F1 Scores"])
+    print("Average F1 Score:", evaluation_results["Average F1 Score"])
+    print("ROUGE:", evaluation_results["ROUGE"])
+    print("BLEU:", evaluation_results["BLEU"])
 
-print("Evaluation Results:")
-# print("F1 Score:", results["F1 Score"])
-print("ROUGE:", results["ROUGE"])
+    with open(f"results/flan-t5-large-k{k}-evaluation_results.json", 'w') as f:
+        json.dump(evaluation_results, f)
