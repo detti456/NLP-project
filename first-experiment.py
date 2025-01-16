@@ -9,7 +9,7 @@ from KnnSearch import KnnSearch
 
 with open("test_processed.json", "r") as file:
     test_dataset = json.load(file)
-actual_answers = [sample["output"] for sample in test_dataset[:2]]
+actual_answers = [sample["output"] for sample in test_dataset]
 
 ks = [3,5,7,10]
 
@@ -62,7 +62,7 @@ for k in ks:
         predictions = []
 
         # Predictions on test set
-        for test_sample in test_dataset[:2]:
+        for test_sample in test_dataset:
             test_question = test_sample["input"]
 
             few_shot_examples = knn_instance.get_top_n_neighbours(test_question, data_emb, train_dataset,k)
@@ -75,12 +75,12 @@ for k in ks:
 
             # print("Predictions using Flan-T5-Large:")
             predictions_large = generate_predictions(model, tokenizer, [input_text])
-            print("Predicted answer: ",predictions_large[0])
+            # print("Predicted answer: ",predictions_large[0])
             # print("Actual answer: ", test_sample["output"])
 
             predictions.append(predictions_large[0])
 
-        actual_answers = [sample["output"] for sample in test_dataset[:2]]
+        actual_answers = [sample["output"] for sample in test_dataset]
 
         with open(f"predictions/flan-t5-large-k{k}-predictions.json", "w") as file:
             json.dump(predictions, file)
