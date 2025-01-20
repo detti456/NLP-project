@@ -1,5 +1,26 @@
 import json
 import numpy as np
+from evaluate import load
+
+# Helper function for BLEU and ROUGE metrics
+class TLQAMetrics:
+    def evaluate_predictions(self, predictions, references):
+        """Evaluate BLEU and ROUGE scores."""
+        # Load metrics
+        bleu = load('bleu')
+        rouge = load('rouge')
+
+        # Compute BLEU and ROUGE
+        bleu_scores = bleu.compute(predictions=predictions, references=references)
+        rouge_scores = rouge.compute(predictions=predictions, references=references)
+
+        return {
+            "BLEU": bleu_scores,
+            "ROUGE": rouge_scores,
+        }
+
+# Initialize BLEU/ROUGE evaluator
+metrics = TLQAMetrics()
 
 # Load test data and predictions
 with open("data\\test_processed.json", "r", encoding="utf-8") as f:
@@ -38,6 +59,10 @@ sample_f1s = []
 timeline_matches = []
 timeline_mismatches = []
 
+# Lists for BLEU and ROUGE references and predictions
+references = []
+sample_predictions = []
+
 # Prepare output lines for sample-wise and global results
 macro_output_lines = []
 micro_output_lines = []
@@ -50,6 +75,10 @@ for i, (test_entry, prediction) in enumerate(zip(test_data, predictions)):
     # Extract entities and timelines separately
     ground_truth_entities = {entity for entity, _ in ground_truth}
     predicted_entities = {entity for entity, _ in predicted}
+
+    # Add reference and prediction for BLEU/ROUGE
+    references.append(test_entry["output"])
+    sample_predictions.append(prediction)
 
     # Calculate matches
     true_positives = ground_truth_entities & predicted_entities
@@ -130,6 +159,14 @@ micro_output_lines.append(f"Micro Recall (Entities): {micro_recall:.4f}")
 micro_output_lines.append(f"Micro F1-Score (Entities): {micro_f1:.4f}")
 micro_output_lines.append(f"Micro Timeline Accuracy: {micro_timeline_accuracy:.4f}")
 micro_output_lines.append(f"Completeness: {completeness:.4f}")
+
+# Evaluate BLEU and ROUGE scores
+bleu_rouge_results = metrics.evaluate_predictions(sample_predictions, references)
+
+# Append BLEU and ROUGE to macro output
+macro_output_lines.append("Global BLEU and ROUGE Metrics:")
+macro_output_lines.append(f"BLEU: {bleu_rouge_results['BLEU']}")
+macro_output_lines.append(f"ROUGE: {bleu_rouge_results['ROUGE']}")
 
 # Save macro results to a file
 with open("model_output\\evaluation_output_macro.txt", "w", encoding="utf-8") as f:
