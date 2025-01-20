@@ -1,4 +1,5 @@
 import json
+import numpy as np
 
 # Load test data and predictions
 with open("data\\test_processed.json", "r", encoding="utf-8") as f:
@@ -22,7 +23,7 @@ def parse_entities_and_timelines(output):
             entities.append((item.strip(), None))
     return entities
 
-# Initialize metrics
+# Initialize global (micro) metrics
 total_true_positives = 0
 total_false_positives = 0
 total_false_negatives = 0
@@ -30,8 +31,16 @@ total_timeline_matches = 0
 total_timeline_mismatches = 0
 total_ground_truth_entities = 0
 
-# Prepare output lines
-output_lines = []
+# Lists to store sample-wise (macro) metrics
+sample_precisions = []
+sample_recalls = []
+sample_f1s = []
+timeline_matches = []
+timeline_mismatches = []
+
+# Prepare output lines for sample-wise and global results
+macro_output_lines = []
+micro_output_lines = []
 
 for i, (test_entry, prediction) in enumerate(zip(test_data, predictions)):
     # Parse ground truth and prediction
@@ -47,55 +56,87 @@ for i, (test_entry, prediction) in enumerate(zip(test_data, predictions)):
     false_positives = predicted_entities - ground_truth_entities
     false_negatives = ground_truth_entities - predicted_entities
 
+    # Precision, recall, F1 for the current sample
+    precision = len(true_positives) / (len(true_positives) + len(false_positives)) if len(true_positives) + len(false_positives) > 0 else 0
+    recall = len(true_positives) / (len(true_positives) + len(false_negatives)) if len(true_positives) + len(false_negatives) > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
+
+    # Append sample-wise metrics
+    sample_precisions.append(precision)
+    sample_recalls.append(recall)
+    sample_f1s.append(f1)
+
     # Evaluate timelines for matched entities
-    timeline_matches = 0
-    timeline_mismatches = 0
+    sample_timeline_matches = 0
+    sample_timeline_mismatches = 0
     for entity, timeline in ground_truth:
         if entity in predicted_entities:
             predicted_timeline = next((t for e, t in predicted if e == entity), None)
             if timeline == predicted_timeline:
-                timeline_matches += 1
+                sample_timeline_matches += 1
             else:
-                timeline_mismatches += 1
+                sample_timeline_mismatches += 1
 
-    # Aggregate metrics
+    timeline_matches.append(sample_timeline_matches)
+    timeline_mismatches.append(sample_timeline_mismatches)
+
+    # Aggregate metrics for micro-averaging
     total_true_positives += len(true_positives)
     total_false_positives += len(false_positives)
     total_false_negatives += len(false_negatives)
-    total_timeline_matches += timeline_matches
-    total_timeline_mismatches += timeline_mismatches
+    total_timeline_matches += sample_timeline_matches
+    total_timeline_mismatches += sample_timeline_mismatches
     total_ground_truth_entities += len(ground_truth_entities)
 
-    # Prepare sample-wise evaluation details
-    output_lines.append(f"Sample {i + 1}:")
-    output_lines.append(f"Input: {test_entry['input']}")
-    output_lines.append(f"Ground Truth: {ground_truth}")
-    output_lines.append(f"Prediction: {predicted}")
-    output_lines.append(f"True Positives (Entities): {true_positives}")
-    output_lines.append(f"False Positives (Entities): {false_positives}")
-    output_lines.append(f"False Negatives (Entities): {false_negatives}")
-    output_lines.append(f"Timeline Matches: {timeline_matches}")
-    output_lines.append(f"Timeline Mismatches: {timeline_mismatches}")
-    output_lines.append("")
+    # Prepare sample-wise evaluation details for macro output
+    macro_output_lines.append(f"Sample {i + 1}:")
+    macro_output_lines.append(f"Input: {test_entry['input']}")
+    macro_output_lines.append(f"Ground Truth: {ground_truth}")
+    macro_output_lines.append(f"Prediction: {predicted}")
+    macro_output_lines.append(f"Precision: {precision:.4f}")
+    macro_output_lines.append(f"Recall: {recall:.4f}")
+    macro_output_lines.append(f"F1-Score: {f1:.4f}")
+    macro_output_lines.append(f"Timeline Matches: {sample_timeline_matches}")
+    macro_output_lines.append(f"Timeline Mismatches: {sample_timeline_mismatches}")
+    macro_output_lines.append("")
 
-# Calculate global metrics
-precision = total_true_positives / (total_true_positives + total_false_positives) if total_true_positives + total_false_positives > 0 else 0
-recall = total_true_positives / (total_true_positives + total_false_negatives) if total_true_positives + total_false_negatives > 0 else 0
-f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
+# Calculate macro-averaged metrics
+macro_precision = np.mean(sample_precisions)
+macro_recall = np.mean(sample_recalls)
+macro_f1 = np.mean(sample_f1s)
 
-timeline_accuracy = total_timeline_matches / (total_timeline_matches + total_timeline_mismatches) if total_timeline_matches + total_timeline_mismatches > 0 else 0
+# Calculate overall timeline accuracy for macro results
+macro_timeline_accuracy = sum(timeline_matches) / (sum(timeline_matches) + sum(timeline_mismatches)) if sum(timeline_matches) + sum(timeline_mismatches) > 0 else 0
+
+# Append macro-averaged metrics to macro output
+macro_output_lines.append("Global Macro Metrics:")
+macro_output_lines.append(f"Macro Precision (Entities): {macro_precision:.4f}")
+macro_output_lines.append(f"Macro Recall (Entities): {macro_recall:.4f}")
+macro_output_lines.append(f"Macro F1-Score (Entities): {macro_f1:.4f}")
+macro_output_lines.append(f"Macro Timeline Accuracy: {macro_timeline_accuracy:.4f}")
+
+# Calculate global (micro) metrics
+micro_precision = total_true_positives / (total_true_positives + total_false_positives) if total_true_positives + total_false_positives > 0 else 0
+micro_recall = total_true_positives / (total_true_positives + total_false_negatives) if total_true_positives + total_false_negatives > 0 else 0
+micro_f1 = 2 * (micro_precision * micro_recall) / (micro_precision + micro_recall) if micro_precision + micro_recall > 0 else 0
+
+micro_timeline_accuracy = total_timeline_matches / (total_timeline_matches + total_timeline_mismatches) if total_timeline_matches + total_timeline_mismatches > 0 else 0
 completeness = total_true_positives / total_ground_truth_entities if total_ground_truth_entities > 0 else 0
 
-# Append global metrics to output
-output_lines.append("Global Metrics:")
-output_lines.append(f"Precision (Entities): {precision:.4f}")
-output_lines.append(f"Recall (Entities): {recall:.4f}")
-output_lines.append(f"F1-Score (Entities): {f1:.4f}")
-output_lines.append(f"Timeline Accuracy: {timeline_accuracy:.4f}")
-output_lines.append(f"Completeness: {completeness:.4f}")
+# Append global metrics to micro output
+micro_output_lines.append("Global Micro Metrics:")
+micro_output_lines.append(f"Micro Precision (Entities): {micro_precision:.4f}")
+micro_output_lines.append(f"Micro Recall (Entities): {micro_recall:.4f}")
+micro_output_lines.append(f"Micro F1-Score (Entities): {micro_f1:.4f}")
+micro_output_lines.append(f"Micro Timeline Accuracy: {micro_timeline_accuracy:.4f}")
+micro_output_lines.append(f"Completeness: {completeness:.4f}")
 
-# Save output to a file
-with open("model_output\\evaluation_output.txt", "w", encoding="utf-8") as f:
-    f.write("\n".join(output_lines))
+# Save macro results to a file
+with open("model_output\\evaluation_output_macro.txt", "w", encoding="utf-8") as f:
+    f.write("\n".join(macro_output_lines))
 
-print("Evaluation results have been saved to 'evaluation_output.txt'.")
+# Save micro results to a separate file
+with open("model_output\\evaluation_output_micro.txt", "w", encoding="utf-8") as f:
+    f.write("\n".join(micro_output_lines))
+
+print("Evaluation results saved to 'evaluation_output_macro.txt' and 'evaluation_output_micro.txt'.")
