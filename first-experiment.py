@@ -1,7 +1,6 @@
 import pickle
 
 
-from datasets import load_metric
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import json
 from TLQAMetrics import TLQAMetrics
@@ -24,7 +23,7 @@ def generate_predictions(model, tokenizer, inputs):
 
 # Prepare few-shot examples
 def prepare_few_shot_examples(dataset):
-    examples = []  # "Given the following examples, give an answer for the last question.\n"
+    examples = [] 
     for sample in dataset:
         examples.append(f"Q: {sample['input']} A: {sample['output']}")
     return "\n".join(examples)
@@ -36,12 +35,12 @@ def format_input(few_shot_examples, test_question):
 
 for k in ks:
     try:
-        with open(f"predictions/flan-t5-large-k{k}-predictions.json", "r") as file:
+        with open(f"predictions/flan-t5-xl-k{k}-predictions.json", "r") as file:
             predictions = json.load(file)
 
     except:
-        tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
-        model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
+        tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+        model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-xl")
 
         # Load TLQA dataset
         with open("train_processed.json", "r") as file:
@@ -71,18 +70,13 @@ for k in ks:
             # Format input for few-shot prediction
             input_text = format_input(few_shot_examples_prompt, test_question)
 
-            # print("\nInput text:", input_text)
-
-            # print("Predictions using Flan-T5-Large:")
             predictions_large = generate_predictions(model, tokenizer, [input_text])
-            # print("Predicted answer: ",predictions_large[0])
-            # print("Actual answer: ", test_sample["output"])
 
             predictions.append(predictions_large[0])
 
         actual_answers = [sample["output"] for sample in test_dataset]
 
-        with open(f"predictions/flan-t5-large-k{k}-predictions.json", "w") as file:
+        with open(f"predictions/flan-t5-xl-k{k}-predictions.json", "w") as file:
             json.dump(predictions, file)
 
     evaluator = TLQAMetrics()
@@ -96,5 +90,5 @@ for k in ks:
     print("ROUGE:", evaluation_results["ROUGE"])
     print("BLEU:", evaluation_results["BLEU"])
 
-    with open(f"results/flan-t5-large-k{k}-evaluation_results.json", 'w') as f:
+    with open(f"results/flan-t5-xl-k{k}-evaluation_results.json", 'w') as f:
         json.dump(evaluation_results, f)

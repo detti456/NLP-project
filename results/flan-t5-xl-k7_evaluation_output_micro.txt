@@ -1,0 +1,6 @@
+Global Micro Metrics:
+Micro Precision (Entities): 0.2839
+Micro Recall (Entities): 0.1510
+Micro F1-Score (Entities): 0.1972
+Micro Timeline Accuracy: 0.9982
+Completeness: 0.1510
